@@ -73,25 +73,6 @@ get_stats <- function(year){
   return(skaters_stats)
 }
 
-calc_goals <- function(year){
-  current_stats <- get_stats(year)
-  last_stats <- get_stats(year - 1)
-  prev_stats <- get_stats(year - 2)
-  players <- current_stats[1]
-  player_num <- 1
-  stats <- (rbind(last_stats, prev_stats))
-  stats <- (rbind(stats, current_stats))
-  stats$GPG <- stats$G/stats$GP
-  stats <- stats[,c('Pos','Age','GPG','GP')]
-  stats <- stats %>%
-    group_by(Pos, Age) %>% 
-    summarise(uGPG = weighted.mean(GPG, GP), varGPG = weightedVar(GPG, GP), GP=sum(GP)) 
-  stats$error <- qt(0.975, df=(stats$GP-1/200))*sqrt(stats$varGPG)/sqrt(stats$GP/200)
-  stats$LBG <- stats$uGPG - stats$error
-  stats$UBG <- stats$uGPG + stats$error
-  return(stats)
-}
-
 create_prev <- function(year){
   prev_stats <- get_stats(year)
   last_stats <- get_stats(year - 1)
@@ -104,72 +85,99 @@ create_prev <- function(year){
   return(goals)
 }
 
-stats <- get_stats(2020)[,c('Player','G')]
-names(stats)[2] <- 'Goals'
-goals <- create_prev(2019)
-goals <- merge(goals, stats, by = 'Player',all = FALSE)
-goals <- goals[,-1]
-goals[is.na(goals)] <- 0 
-
-# first we split between training and testing sets
-split <- initial_split(goals, prop = 4/5)
-train <- training(split)
-test <- testing(split)
-
-# the we split the training set into validation and training
-split <- initial_split(train, prop = 4/5)
-train <- training(split)
-val <- testing(split)
-
-df_to_dataset <- function(df, shuffle = TRUE, batch_size = 32) {
-  ds <- df %>% 
-    tensor_slices_dataset()
+get_pred <- function(stat){
+  stats <- get_stats(2021)[,c('Player',stat)]
+  names(stats)[2] <- 'Goals'
+  goals <- create_prev(2020)
+  goals <- merge(goals, stats, by = 'Player',all = FALSE)
+  goals <- goals[,-1]
+  goals[is.na(goals)] <- 0 
   
-  if (shuffle)
-    ds <- ds %>% dataset_shuffle(buffer_size = nrow(df))
+  # first we split between training and testing sets
+  split <- initial_split(goals, prop = 4/5)
+  train <- training(split)
+  val <- testing(split)
   
-  ds %>% 
-    dataset_batch(batch_size = batch_size)
+  df_to_dataset <- function(df, shuffle = TRUE, batch_size = 32) {
+    ds <- df %>% 
+      tensor_slices_dataset()
+    
+    if (shuffle)
+      ds <- ds %>% dataset_shuffle(buffer_size = nrow(df))
+    
+    ds %>% 
+      dataset_batch(batch_size = batch_size)
+  }
+  
+  batch_size <- 128
+  train_ds <- df_to_dataset(train, batch_size = batch_size)
+  val_ds <- df_to_dataset(val, shuffle = FALSE, batch_size = batch_size)
+  test_ds <- df_to_dataset(test, shuffle = FALSE, batch_size = batch_size)
+  
+  #train_ds %>% 
+  #reticulate::as_iterator() %>% 
+  #reticulate::iter_next() %>% 
+  #str()
+  
+  spec <- feature_spec(train_ds, Goals ~ .)
+  
+  spec <- spec %>% 
+    step_numeric_column(
+      all_numeric(), 
+      normalizer_fn = scaler_standard()
+    ) %>% 
+    step_categorical_column_with_vocabulary_list(c(Pos.x, Pos.y, Pos))
+  
+  spec_prep <- fit(spec)
+  #str(spec_prep$dense_features())
+  
+  model <- keras_model_sequential() %>% 
+    layer_dense_features(dense_features(spec_prep)) %>% 
+    layer_dense(units = 128, activation = "relu") %>% 
+    layer_dense(units = 1, activation = "relu")
+  
+  
+  model %>% compile(
+    loss = "mean_squared_error",
+    optimizer = "adam", 
+  )
+  
+  history <- model %>% 
+    fit(
+      dataset_use_spec(train_ds, spec = spec_prep),
+      epochs = 500, 
+      validation_data = dataset_use_spec(train_ds, spec_prep),
+      verbose = 2
+    )
+  
+  test <- create_prev(2021)[,-1]
+  return(as.matrix(predict(model, test)))
 }
 
-batch_size <- 128
-train_ds <- df_to_dataset(train, batch_size = batch_size)
-val_ds <- df_to_dataset(val, shuffle = FALSE, batch_size = batch_size)
-test_ds <- df_to_dataset(test, shuffle = FALSE, batch_size = batch_size)
+player <- create_prev(2021)[,1]
+GP <- as.numeric(get_pred('GP'))
+GP[is.na(GP)] <- 0
+G <- as.numeric(get_pred('G'))
+G[is.na(G)] <- 0
+A<- as.numeric(get_pred('A'))
+A[is.na(A)] <- 0
+PPG <- as.numeric(get_pred('PPG'))
+PPG[is.na(PPG)] <- 0
+PPA <- as.numeric(get_pred('PPA'))
+PPA[is.na(PPA)] <- 0
+SHG <- as.numeric(get_pred('SHG'))
+SHG[is.na(SHG)] <- 0
+SHA <- as.numeric(get_pred('SHA'))
+SHA[is.na(SHA)] <- 0
+PIM <- as.numeric(get_pred('PIM'))
+PIM[is.na(PIM)] <- 0
+S <- as.numeric(get_pred('S'))
+S[is.na(S)] <- 0
+HIT <- as.numeric(get_pred('HIT'))
+HIT[is.na(HIT)] <- 0
+BLK <- as.numeric(get_pred('BLK'))
+BLK[is.na(BLK)] <- 0
+predictions <- data.frame(player,GP,G,A,PPG,PPA,SHG,SHA,PIM,S,HIT,BLK)
+predictions$Points <- predictions$G * 2 + predictions$A * 1 + (predictions$PPG + predictions$PPA + predictions$SHG + predictions$SHA + predictions$BLK) * 0.5 + (predictions$S + predictions$HIT) * 0.1
 
-train_ds %>% 
-  reticulate::as_iterator() %>% 
-  reticulate::iter_next() %>% 
-  str()
 
-spec <- feature_spec(train_ds, Goals ~ .)
-
-spec <- spec %>% 
-  step_numeric_column(
-    all_numeric(), 
-    normalizer_fn = scaler_standard()
-  ) %>% 
-  step_categorical_column_with_vocabulary_list(c(Pos.x, Pos.y, Pos))
-
-spec_prep <- fit(spec)
-str(spec_prep$dense_features())
-
-model <- keras_model_sequential() %>% 
-  layer_dense_features(dense_features(spec_prep)) %>% 
-  layer_dense(units = 64, activation = "relu") %>% 
-  layer_dense(units = 1, activation = "relu")
-
-
-model %>% compile(
-  loss = "mean_squared_error",
-  optimizer = "adam", 
-)
-
-history <- model %>% 
-  fit(
-    dataset_use_spec(train_ds, spec = spec_prep),
-    epochs = 100, 
-    validation_data = dataset_use_spec(train_ds, spec_prep),
-    verbose = 2
-  )
-pred <- predict(model, test)
