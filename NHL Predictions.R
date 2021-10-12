@@ -109,10 +109,8 @@ get_pred <- function(stat){
       dataset_batch(batch_size = batch_size)
   }
   
-  batch_size <- 128
-  train_ds <- df_to_dataset(train, batch_size = batch_size)
-  val_ds <- df_to_dataset(val, shuffle = FALSE, batch_size = batch_size)
-  test_ds <- df_to_dataset(test, shuffle = FALSE, batch_size = batch_size)
+  train_ds <- df_to_dataset(train)
+  val_ds <- df_to_dataset(val, shuffle = FALSE)
   
   #train_ds %>% 
   #reticulate::as_iterator() %>% 
@@ -133,7 +131,8 @@ get_pred <- function(stat){
   
   model <- keras_model_sequential() %>% 
     layer_dense_features(dense_features(spec_prep)) %>% 
-    layer_dense(units = 128, activation = "relu") %>% 
+    layer_dense(units = 64, activation = "relu") %>% 
+    layer_dense(units = 64, activation = "relu") %>% 
     layer_dense(units = 1, activation = "relu")
   
   
@@ -145,7 +144,7 @@ get_pred <- function(stat){
   history <- model %>% 
     fit(
       dataset_use_spec(train_ds, spec = spec_prep),
-      epochs = 500, 
+      epochs = 50, 
       validation_data = dataset_use_spec(train_ds, spec_prep),
       verbose = 2
     )
