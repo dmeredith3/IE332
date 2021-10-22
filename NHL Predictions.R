@@ -64,19 +64,14 @@ get_stats <- function(year){
   skaters_stats$S <- as.numeric(skaters_stats$S) * fact
   skaters_stats$HIT <- as.numeric(skaters_stats$HIT) * fact
   skaters_stats$BLK <- as.numeric(skaters_stats$BLK) * fact
-  #Calculates fantasy points
-  skaters_stats$Points <- skaters_stats$G * 2 + skaters_stats$A * 1 + (skaters_stats$PPG + skaters_stats$PPA + skaters_stats$SHG + skaters_stats$SHA + skaters_stats$BLK) * 0.5 + (skaters_stats$S + skaters_stats$HIT) * 0.1
-  skaters_stats$Pos[skaters_stats$Pos == "C"] <- "F"
-  skaters_stats$Pos[skaters_stats$Pos == "LW"] <- "F"
-  skaters_stats$Pos[skaters_stats$Pos == "RW"] <- "F"
-  skaters_stats$Pos[skaters_stats$Pos == "W"] <- "F"
   return(skaters_stats)
 }
 
-create_prev <- function(year){
-  cur_stats <- get_stats(year)
-  last_stats <- get_stats(year - 1)
-  prev_stats <- get_stats(year - 2)
+
+create_prev <- function(year, stat){
+  cur_stats <- get_stats(year)[,c('Player', 'Pos', 'Age', stat)]
+  last_stats <- get_stats(year - 1)[,c('Player', 'Pos', 'Age', stat)]
+  prev_stats <- get_stats(year - 2)[,c('Player', 'Pos', 'Age', stat)]
   #dprev_stats <- get_stats(year - 3)
   
   goals <- merge(cur_stats, last_stats, by = 'Player', all = TRUE)
@@ -87,14 +82,38 @@ create_prev <- function(year){
 
 get_pred <- function(stat){
   stats <- get_stats(2018)[,c('Player',stat)]
-  names(stats)[2] <- 'Goals'
-  goals <- create_prev(2017)
-  goals <- merge(goals, stats, by = 'Player',all = FALSE)
-  goals <- goals[,-1]
-  goals[is.na(goals)] <- 0 
+  names(stats)[2] <- 'Stat'
+  goalie_data <- create_prev(2017, stat)
+  goalie_data <- merge(goalie_data, stats, by = 'Player',all = FALSE)
+  goalie_data <- goalie_data[,-1]
+  goalie_data[is.na(goalie_data)] <- 0 
+  
+  stats2 <- get_stats(2017)[,c('Player',stat)]
+  names(stats2)[2] <- 'Stat'
+  goalie_data2 <- create_prev(2016, stat)
+  goalie_data2 <- merge(goalie_data2, stats2, by = 'Player',all = FALSE)
+  goalie_data2 <- goalie_data2[,-1]
+  goalie_data2[is.na(goalie_data2)] <- 0 
+  goalie_data <- rbind(goalie_data,goalie_data2)
+  
+  stats2 <- get_stats(2016)[,c('Player', stat)]
+  names(stats2)[2] <- 'Stat'
+  goalie_data2 <- create_prev(2015, stat)
+  goalie_data2 <- merge(goalie_data2, stats2, by = 'Player',all = FALSE)
+  goalie_data2 <- goalie_data2[,-1]
+  goalie_data2[is.na(goalie_data2)] <- 0 
+  goalie_data <- rbind(goalie_data,goalie_data2)
+  
+  stats2 <- get_stats(2015)[,c('Player',stat)]
+  names(stats2)[2] <- 'Stat'
+  goalie_data2 <- create_prev(2014, stat)
+  goalie_data2 <- merge(goalie_data2, stats2, by = 'Player',all = FALSE)
+  goalie_data2 <- goalie_data2[,-1]
+  goalie_data2[is.na(goalie_data2)] <- 0 
+  goalie_data <- rbind(goalie_data,goalie_data2)
   
   # first we split between training and testing sets
-  split <- initial_split(goals, prop = 4/5)
+  split <- initial_split(goalie_data, prop = 4/5)
   train <- training(split)
   val <- testing(split)
   
@@ -117,7 +136,7 @@ get_pred <- function(stat){
   #reticulate::iter_next() %>% 
   #str()
   
-  spec <- feature_spec(train_ds, Goals ~ .)
+  spec <- feature_spec(train_ds, Stat ~ .)
   
   spec <- spec %>% 
     step_numeric_column(
@@ -129,34 +148,36 @@ get_pred <- function(stat){
   spec_prep <- fit(spec)
   #str(spec_prep$dense_features())
   
+
   model <- keras_model_sequential() %>% 
     layer_dense_features(dense_features(spec_prep)) %>% 
     layer_dense(units = 256, activation = "relu") %>% 
     layer_dense(units = 128, activation = "relu") %>% 
     layer_dense(units = 128, activation = "relu") %>% 
     layer_dense(units = 1, activation = "relu")
-  
-  
+
+
   model %>% compile(
-    loss = "mean_absolute_error",
+    loss = "mean_squared_error",
     optimizer = "adam", 
   )
+
+  
   
   history <- model %>% 
     fit(
       dataset_use_spec(train_ds, spec = spec_prep),
-      epochs = 300, 
+      epochs = 100, 
       validation_data = dataset_use_spec(train_ds, spec_prep),
-      verbose = 0
+      verbose = 2
     )
   
-  test <- create_prev(2021)[,-1]
+  test <- create_prev(2021,stat)[,-1]
+  test[is.na(test)] <- 0 
   return(as.matrix(predict(model, test)))
 }
 
-Player <- create_prev(2021)[,1]
-GP <- as.numeric(get_pred('GP'))
-GP[is.na(GP)] <- 0
+Player <- create_prev(2021, "G")[,c(1,2)]
 G <- as.numeric(get_pred('G'))
 G[is.na(G)] <- 0
 A<- as.numeric(get_pred('A'))
@@ -178,22 +199,6 @@ HIT[is.na(HIT)] <- 0
 BLK <- as.numeric(get_pred('BLK'))
 BLK[is.na(BLK)] <- 0
 
-predictions <- data.frame(Player,GP,G,A,PPG,PPA,SHG,SHA,PIM,S,HIT,BLK)
-predictions$Points <- predictions$G * 2 + predictions$A * 1 + (predictions$PPG + predictions$PPA + predictions$SHG + predictions$SHA + predictions$BLK) * 0.5 + (predictions$S + predictions$HIT) * 0.1
-stats21 <- get_stats(2021)[,c('Player','Points')]
-goals <- merge(predictions, stats21, by = 'Player', all = TRUE)
-goals$delta <- goals$Points.x - goals$Points.y
+predictions <- data.frame(Player,G,A,PPG,PPA,SHG,SHA,PIM,S,HIT,BLK)
 
-par(mfrow=c(3, 4))
-colnames <- dimnames(predictions)[[2]]
-for (i in 2:13) {
-  hist(predictions[,i], main=colnames[i], col="gray", border="white")
-}
-
-stats2019 <- get_stats(2019)[,-c(2,3)]
-par(mfrow=c(3, 4))
-colnames <- dimnames(stats2019)[[2]]
-for (i in 2:13) {
-  hist(as.numeric(unlist(stats2019[,i])), main=colnames[i], col="gray", border="white")
-}
 
