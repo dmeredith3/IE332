@@ -7,9 +7,9 @@ library(tidyverse)
 library(rsample)
 library(tfdatasets)
 
-get_stats <- function(year){
+get_skater_stats <- function(year){
   #Pull from html
-  skaters_url <- read_html(paste("https://www.hockey-reference.com/leagues/NHL_", as.character(year), "_skaters.html")) #Reads html of hockey-reference
+  skaters_url <- read_html(paste("https://www.hockey-reference.com/leagues/NHL_", as.character(year), "_skaters.html", sep = '')) #Reads html of hockey-reference
   skaters_stats <- skaters_url %>% html_node("table") %>% html_table(fill=TRUE) #Pulls table of players stats
   #Moves around headers
   names(skaters_stats) <- as.character(skaters_stats[1,])
@@ -46,11 +46,9 @@ get_stats <- function(year){
   #Formats data into numeric form
   if (year == 2021){
     fact <- 82/56
-  }
-  else if (year == 2020){
+  }else if (year == 2020){
     fact <- 82/70
-  }
-  else{
+  }else{
     fact <- 1
   }
   skaters_stats$GP <- as.numeric(skaters_stats$GP) * fact
@@ -64,55 +62,58 @@ get_stats <- function(year){
   skaters_stats$S <- as.numeric(skaters_stats$S) * fact
   skaters_stats$HIT <- as.numeric(skaters_stats$HIT) * fact
   skaters_stats$BLK <- as.numeric(skaters_stats$BLK) * fact
+  skaters_stats <- separate(skaters_stats, Player, c('First', 'Last'), sep = ' ', extra='merge')
+  skaters_stats$Id <- tolower(paste(substr(skaters_stats$First,1,1), str_replace_all(substr(skaters_stats$Last,1,10), pattern=" ", repl=""), (year - as.numeric(skaters_stats$Age)), sep = ''))
+  skaters_stats <- skaters_stats[, c('Id','First','Last','Age','Pos','GP','G','A','PPG','PPA','SHG', 'SHA','PIM','S','HIT','BLK')]
   return(skaters_stats)
 }
 
 
-create_prev <- function(year, stat){
-  cur_stats <- get_stats(year)[,c('Player', 'Pos', 'Age', stat)]
-  last_stats <- get_stats(year - 1)[,c('Player', 'Pos', 'Age', stat)]
-  prev_stats <- get_stats(year - 2)[,c('Player', 'Pos', 'Age', stat)]
-  #dprev_stats <- get_stats(year - 3)
+get_skater_prev <- function(year, stat){
+  cur_stats <- get_skater_stats(year)[,c('Id', 'Pos', 'Age', stat)]
+  last_stats <- get_skater_stats(year - 1)[,c('Id', 'Pos', 'Age', stat)]
+  prev_stats <- get_skater_stats(year - 2)[,c('Id', 'Pos', 'Age', stat)]
+  #dprev_stats <- get_skater_stats(year - 3)
   
-  goals <- merge(cur_stats, last_stats, by = 'Player', all = TRUE)
-  goals <- merge(goals, prev_stats, by = 'Player', all = TRUE)
+  goals <- merge(cur_stats, last_stats, by = 'Id', all = TRUE)
+  goals <- merge(goals, prev_stats, by = 'Id', all = TRUE)
   
   return(goals)
 }
 
-get_pred <- function(stat){
-  stats <- get_stats(2018)[,c('Player',stat)]
+get_skater_pred <- function(stat){
+  stats <- get_skater_stats(2018)[,c('Id',stat)]
   names(stats)[2] <- 'Stat'
-  goalie_data <- create_prev(2017, stat)
-  goalie_data <- merge(goalie_data, stats, by = 'Player',all = FALSE)
+  goalie_data <- get_skater_prev(2017, stat)
+  goalie_data <- merge(goalie_data, stats, by = 'Id',all = FALSE)
   goalie_data <- goalie_data[,-1]
   goalie_data[is.na(goalie_data)] <- 0 
   
-  stats2 <- get_stats(2017)[,c('Player',stat)]
+  stats2 <- get_skater_stats(2017)[,c('Id',stat)]
   names(stats2)[2] <- 'Stat'
-  goalie_data2 <- create_prev(2016, stat)
-  goalie_data2 <- merge(goalie_data2, stats2, by = 'Player',all = FALSE)
+  goalie_data2 <- get_skater_prev(2016, stat)
+  goalie_data2 <- merge(goalie_data2, stats2, by = 'Id',all = FALSE)
   goalie_data2 <- goalie_data2[,-1]
   goalie_data2[is.na(goalie_data2)] <- 0 
   goalie_data <- rbind(goalie_data,goalie_data2)
   
-  stats2 <- get_stats(2016)[,c('Player', stat)]
+  stats2 <- get_skater_stats(2016)[,c('Id', stat)]
   names(stats2)[2] <- 'Stat'
-  goalie_data2 <- create_prev(2015, stat)
-  goalie_data2 <- merge(goalie_data2, stats2, by = 'Player',all = FALSE)
+  goalie_data2 <- get_skater_prev(2015, stat)
+  goalie_data2 <- merge(goalie_data2, stats2, by = 'Id',all = FALSE)
   goalie_data2 <- goalie_data2[,-1]
   goalie_data2[is.na(goalie_data2)] <- 0 
   goalie_data <- rbind(goalie_data,goalie_data2)
   
-  stats2 <- get_stats(2015)[,c('Player',stat)]
+  stats2 <- get_skater_stats(2015)[,c('Id',stat)]
   names(stats2)[2] <- 'Stat'
-  goalie_data2 <- create_prev(2014, stat)
-  goalie_data2 <- merge(goalie_data2, stats2, by = 'Player',all = FALSE)
+  goalie_data2 <- get_skater_prev(2014, stat)
+  goalie_data2 <- merge(goalie_data2, stats2, by = 'Id',all = FALSE)
   goalie_data2 <- goalie_data2[,-1]
   goalie_data2[is.na(goalie_data2)] <- 0 
   goalie_data <- rbind(goalie_data,goalie_data2)
-  
   # first we split between training and testing sets
+  
   split <- initial_split(goalie_data, prop = 4/5)
   train <- training(split)
   val <- testing(split)
@@ -172,33 +173,59 @@ get_pred <- function(stat){
       verbose = 2
     )
   
-  test <- create_prev(2021,stat)[,-1]
-  test[is.na(test)] <- 0 
-  return(as.matrix(predict(model, test)))
+  prev <- get_skater_prev(2021,stat)
+  Id <-get_skater_prev(2022, "G")[,c('Id')]
+  ids <- data.frame(Id)
+  eval <- merge(ids, prev, by = 'Id',all.x = TRUE)
+  eval[is.na(eval)] <- 0 
+  return(as.matrix(predict(model, eval)))
 }
 
-Player <- create_prev(2021, "G")[,c(1,2)]
-G <- as.numeric(get_pred('G'))
+
+cur_stats <- get_skater_stats(2022)[,c('Id', 'First','Last','Pos')]
+last_stats <- get_skater_stats(2021)[,c('Id', 'First','Last','Pos')]
+prev_stats <- get_skater_stats(2020)[,c('Id', 'First','Last','Pos')]
+#dprev_stats <- get_skater_stats(year - 3)
+
+Skaters <- merge(cur_stats, last_stats, by = 'Id', all = TRUE)
+Skaters <- merge(Skaters, prev_stats, by = 'Id', all = TRUE)
+for (row in 1:nrow(Skaters)) {
+  if (is.na(Skaters[row,4])){
+    if(is.na(Skaters[row,7])){
+      Skaters[row,4] <- Skaters[row,10]
+      Skaters[row,2] <- Skaters[row,8]
+      Skaters[row,3] <- Skaters[row,9]
+    }
+    else{
+      Skaters[row,4] <- Skaters[row,7]
+      Skaters[row,2] <- Skaters[row,5]
+      Skaters[row,3] <- Skaters[row,6]
+    }
+  }
+}
+Skaters <- Skaters[,c('Id','First.x','Last.x','Pos.x')]
+names(Skaters) <- c('Id','first','last','pos')
+G <- as.numeric(get_skater_pred('G'))
 G[is.na(G)] <- 0
-A<- as.numeric(get_pred('A'))
+A<- as.numeric(get_skater_pred('A'))
 A[is.na(A)] <- 0
-PPG <- as.numeric(get_pred('PPG'))
+PPG <- as.numeric(get_skater_pred('PPG'))
 PPG[is.na(PPG)] <- 0
-PPA <- as.numeric(get_pred('PPA'))
+PPA <- as.numeric(get_skater_pred('PPA'))
 PPA[is.na(PPA)] <- 0
-SHG <- as.numeric(get_pred('SHG'))
+SHG <- as.numeric(get_skater_pred('SHG'))
 SHG[is.na(SHG)] <- 0
-SHA <- as.numeric(get_pred('SHA'))
+SHA <- as.numeric(get_skater_pred('SHA'))
 SHA[is.na(SHA)] <- 0
-PIM <- as.numeric(get_pred('PIM'))
+PIM <- as.numeric(get_skater_pred('PIM'))
 PIM[is.na(PIM)] <- 0
-S <- as.numeric(get_pred('S'))
+S <- as.numeric(get_skater_pred('S'))
 S[is.na(S)] <- 0
-HIT <- as.numeric(get_pred('HIT'))
+HIT <- as.numeric(get_skater_pred('HIT'))
 HIT[is.na(HIT)] <- 0
-BLK <- as.numeric(get_pred('BLK'))
+BLK <- as.numeric(get_skater_pred('BLK'))
 BLK[is.na(BLK)] <- 0
 
-predictions <- data.frame(Player,G,A,PPG,PPA,SHG,SHA,PIM,S,HIT,BLK)
+skater_predictions <- data.frame(Skaters[1],G,A,PPG,PPA,SHG,SHA,PIM,S,HIT,BLK)
 
 
