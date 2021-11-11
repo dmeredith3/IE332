@@ -7,6 +7,54 @@ library(tidyverse)
 library(rsample)
 library(tfdatasets)
 
+get_goalie_stats <- function(year){
+  #Pull from html
+  skaters_url <- read_html(paste("https://www.hockey-reference.com/leagues/NHL_", as.character(year), "_goalies.html"), sep = '') #Reads html of hockey-reference
+  skaters_stats <- skaters_url %>% html_node("table") %>% html_table(fill=TRUE) #Pulls table of players stats
+  #Moves around headers
+  names(goalies_stats) <- as.character(goalies_stats[1,])
+  goalies_stats <- goalies_stats[-1,]
+  row_nums <- goalies_stats[1]
+  
+  #Removes duplicate players and header rows
+  rows <- c()
+  count <- 1
+  num <- 1
+  for (row in row_nums) {
+    for(r in row) {
+      if(r == "Rk" || r != num){
+        rows <- append(rows, count)
+      }
+      else{
+        num <- num + 1
+      }
+      count <- count + 1
+    }
+  }
+  goalies_stats <- goalies_stats[-rows,]
+  #Takes rows necessary for fantasy
+  goalies_stats <- goalies_stats[, c('Player','Age','GP','GS','W','SV','SV%','SO')]
+  names(goalies_stats)[7] <- 'SVP'
+  #Formats data into numeric form
+  if (year == 2021){
+    fact <- 82/56
+  }else if (year == 2020){
+    fact <- 82/70
+  }else{
+    fact <- 1
+  }
+  goalies_stats$GP <- as.numeric(goalies_stats$GP) * fact
+  goalies_stats$GS <- as.numeric(goalies_stats$GS) * fact
+  goalies_stats$W <- as.numeric(goalies_stats$W) * fact
+  goalies_stats$SV <- as.numeric(goalies_stats$SV) * fact
+  goalies_stats$SVP <- as.numeric(goalies_stats$SVP)
+  goalies_stats$SO <- as.numeric(goalies_stats$SO) * fact
+  goalies_stats <- separate(goalies_stats, Player, c('First', 'Last'), sep = ' ', extra='merge')
+  goalies_stats$Id <- tolower(paste(substr(goalies_stats$First,1,1), str_replace_all(substr(goalies_stats$Last,1,10), pattern=" ", repl=""), (year - as.numeric(goalies_stats$Age)), sep = ''))
+  goalies_stats <- goalies_stats[, c('Id','First','Last','Age','GP','GS','W','SV','SVP','SO')]
+  return(goalies_stats)
+}
+
 get_skater_stats <- function(year){
   #Pull from html
   skaters_url <- read_html(paste("https://www.hockey-reference.com/leagues/NHL_", as.character(year), "_skaters.html", sep = '')) #Reads html of hockey-reference
@@ -68,24 +116,63 @@ get_skater_stats <- function(year){
   return(skaters_stats)
 }
 
-get_score <- function(stats, string_1){
-  players <- stats[,string_1]
-  avg_table <- aggregate(players[, 3:5], list(players$Pos), mean)
+get_skater_score <- function(stats, string_1){
+  players <- stats[,c("Id","Pos", string_1)]
+  F_D <- c()
+  pos <- c()
+  for (row in 1:nrow(players)){
+    if (players[row,2] != 'D'){
+      F_D[row] <- 'F'
+      pos[row] <- players[row,2]
+    }
+    else{
+      F_D[row] <- 'D'
+      pos[row] <- players[row,2]
+    }
+  }
+  players$Pos <- F_D
+  avg_table <- aggregate(players[, 3:length(players)], list(players$Pos), mean)
   scores <- c()
   for (row in 1:nrow(players)){
     column_score <- c()
     if (players[row,2] == 'F'){
       for (column in 1:(length(string_1)-2)){
-        column_score[column] <- as.numeric(((players[row,2+column])/ avg_table[2,1+column]) * 100)
+        if (string_1[column] == 'PIM'){
+          column_score[column] <- as.numeric(((avg_table[2,1+column] + 1)/(players[row,2+column]) + 1) * 100)
+        }
+        else{
+          column_score[column] <- as.numeric(((players[row,2+column])/ avg_table[2,1+column]) * 100)
+        }
       }
       scores[row] <- mean(column_score)
     }
     else{
       for (column in 1:(length(string_1)-2)){
-        column_score[column] <- as.numeric(((players[row,2+column])/ avg_table[1,1+column]) * 100)
+        if (string_1[column] == 'PIM'){
+          column_score[column] <- as.numeric(((avg_table[2,1+column] + 1)/(players[row,2+column]) + 1) * 100)
+        }
+        else{
+          column_score[column] <- as.numeric(((players[row,2+column])/ avg_table[2,1+column]) * 100)
+        }
+      scores[row] <- mean(column_score)
+      }
+    }
+  }
+  players$Pos <- pos
+  players <- data.frame(players,scores)
+  return(players)
+}
+
+get_goalie_score <- function(stats, string_1){
+  players <- stats[,c("Id","Pos", string_1)]
+  players <- stats[,string_1]
+  avg_table <- aggregate(players[, 3:len(players)], list(players$Pos), mean)
+  scores <- c()
+  for (row in 1:nrow(players)){
+      for (column in 1:(length(string_1)-2)){
+        column_score[column] <- as.numeric(((players[row,2+column])/ avg_table[2,1+column]) * 100)
       }
       scores[row] <- mean(column_score)
-    }
   }
   players <- data.frame(players,scores)
   return(players)
