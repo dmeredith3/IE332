@@ -9,8 +9,8 @@ library(tfdatasets)
 
 get_goalie_stats <- function(year){
   #Pull from html
-  skaters_url <- read_html(paste("https://www.hockey-reference.com/leagues/NHL_", as.character(year), "_goalies.html"), sep = '') #Reads html of hockey-reference
-  skaters_stats <- skaters_url %>% html_node("table") %>% html_table(fill=TRUE) #Pulls table of players stats
+  goalies_url <- read_html(paste("https://www.hockey-reference.com/leagues/NHL_", as.character(year), "_goalies.html", sep = '')) #Reads html of hockey-reference
+  goalies_stats <- goalies_url %>% html_node("table") %>% html_table(fill=TRUE) #Pulls table of players stats
   #Moves around headers
   names(goalies_stats) <- as.character(goalies_stats[1,])
   goalies_stats <- goalies_stats[-1,]
@@ -164,13 +164,13 @@ get_skater_score <- function(stats, string_1){
 }
 
 get_goalie_score <- function(stats, string_1){
-  players <- stats[,c("Id","Pos", string_1)]
-  players <- stats[,string_1]
-  avg_table <- aggregate(players[, 3:len(players)], list(players$Pos), mean)
+  players <- stats[,c("Id", string_1)]
+  avg_table <- (colMeans(players[, 2:length(players)]))
   scores <- c()
   for (row in 1:nrow(players)){
-      for (column in 1:(length(string_1)-2)){
-        column_score[column] <- as.numeric(((players[row,2+column])/ avg_table[2,1+column]) * 100)
+      column_score <- c()
+      for (column in 1:(length(string_1))){
+        column_score[column] <- as.numeric(((players[row,1+column])/ avg_table[column]) * 100)
       }
       scores[row] <- mean(column_score)
   }
