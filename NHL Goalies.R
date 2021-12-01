@@ -9,7 +9,7 @@ library(tfdatasets)
 
 get_goalie_stats <- function(year){
   #Pull from html
-  goalies_url <- read_html(paste("https://www.hockey-reference.com/leagues/NHL_", as.character(year), "_goalies.html")) #Reads html of hockey-reference
+  goalies_url <- read_html(paste("https://www.hockey-reference.com/leagues/NHL_", as.character(year), "_goalies.html", sep = '')) #Reads html of hockey-reference
   goalies_stats <- goalies_url %>% html_node("table") %>% html_table(fill=TRUE) #Pulls table of players stats
   #Moves around headers
   names(goalies_stats) <- as.character(goalies_stats[1,])
@@ -98,6 +98,8 @@ get_goalie_pred <- function(stat){
   goalie_data2[is.na(goalie_data2)] <- 0 
   goalie_data <- rbind(goalie_data,goalie_data2)
   # first we split between training and testing sets
+  max <- max(goalie_data$Stat)
+  goalie_data$Stat <- goalie_data$Stat/max(goalie_data$Stat)
   
   split <- initial_split(goalie_data, prop = 9/10)
   train <- training(split)
@@ -159,7 +161,7 @@ get_goalie_pred <- function(stat){
   ids <- data.frame(Id)
   eval <- merge(ids, prev, by = 'Id',all.x = TRUE)
   eval[is.na(eval)] <- 0 
-  return(as.matrix(predict(model, eval)))
+  return(as.matrix(predict(model, eval)*max))
 }
 
 cur_stats <- get_goalie_stats(2022)[,c('Id', 'First','Last')]

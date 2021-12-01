@@ -116,8 +116,8 @@ get_skater_stats <- function(year){
   return(skaters_stats)
 }
 
-get_skater_score <- function(stats, string_1){
-  players <- stats[,c("Id","Pos", string_1)]
+get_skater_score <- function(stats, skater_cats){
+  players <- stats[,c("Id","pos", skater_cats)]
   F_D <- c()
   pos <- c()
   for (row in 1:nrow(players)){
@@ -130,15 +130,17 @@ get_skater_score <- function(stats, string_1){
       pos[row] <- players[row,2]
     }
   }
-  players$Pos <- F_D
-  avg_table <- aggregate(players[, 3:length(players)], list(players$Pos), mean)
+  players$pos <- F_D
+  avg_table <- aggregate(players[, 3:length(players)], list(players$pos), mean)
+  names(avg_table) <- 'pos'
+  avg_table <- avg_table[order(avg_table$pos),]
   scores <- c()
   for (row in 1:nrow(players)){
     column_score <- c()
     if (players[row,2] == 'F'){
-      for (column in 1:(length(string_1)-2)){
-        if (string_1[column] == 'PIM'){
-          column_score[column] <- as.numeric(((avg_table[2,1+column] + 1)/(players[row,2+column]) + 1) * 100)
+      for (column in 1:(length(skater_cats)-2)){
+        if (skater_cats[column] == 'PIM'){
+          column_score[column] <- as.numeric(((avg_table[2,1+column] + 1)/(players[row,2+column] + 2)) * 100)
         }
         else{
           column_score[column] <- as.numeric(((players[row,2+column])/ avg_table[2,1+column]) * 100)
@@ -147,32 +149,32 @@ get_skater_score <- function(stats, string_1){
       scores[row] <- mean(column_score)
     }
     else{
-      for (column in 1:(length(string_1)-2)){
-        if (string_1[column] == 'PIM'){
-          column_score[column] <- as.numeric(((avg_table[2,1+column] + 1)/(players[row,2+column]) + 1) * 100)
+      for (column in 1:(length(skater_cats)-2)){
+        if (skater_cats[column] == 'PIM'){
+          column_score[column] <- as.numeric(((avg_table[1,1+column] + 1)/(players[row,2+column] + 2)) * 100)
         }
         else{
-          column_score[column] <- as.numeric(((players[row,2+column])/ avg_table[2,1+column]) * 100)
+          column_score[column] <- as.numeric(((players[row,2+column])/ avg_table[1,1+column]) * 100)
         }
-      scores[row] <- mean(column_score)
+        scores[row] <- mean(column_score)
       }
     }
   }
-  players$Pos <- pos
+  players$pos <- pos
   players <- data.frame(players,scores)
   return(players)
 }
 
-get_goalie_score <- function(stats, string_1){
-  players <- stats[,c("Id", string_1)]
+get_goalie_score <- function(stats, goalie_cats){
+  players <- stats[,c("Id", goalie_cats)]
   avg_table <- (colMeans(players[, 2:length(players)]))
   scores <- c()
   for (row in 1:nrow(players)){
-      column_score <- c()
-      for (column in 1:(length(string_1))){
-        column_score[column] <- as.numeric(((players[row,1+column])/ avg_table[column]) * 100)
-      }
-      scores[row] <- mean(column_score)
+    column_score <- c()
+    for (column in 1:(length(goalie_cats))){
+      column_score[column] <- as.numeric(((players[row,1+column])/ avg_table[column]) * 100)
+    }
+    scores[row] <- mean(column_score)
   }
   players <- data.frame(players,scores)
   return(players)

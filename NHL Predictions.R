@@ -114,6 +114,9 @@ get_skater_pred <- function(stat){
   goalie_data <- rbind(goalie_data,goalie_data2)
   # first we split between training and testing sets
   
+  max <- max(goalie_data$Stat)
+  goalie_data$Stat <- goalie_data$Stat/max(goalie_data$Stat)
+  
   split <- initial_split(goalie_data, prop = 4/5)
   train <- training(split)
   val <- testing(split)
@@ -152,10 +155,10 @@ get_skater_pred <- function(stat){
 
   model <- keras_model_sequential() %>% 
     layer_dense_features(dense_features(spec_prep)) %>% 
-    layer_dense(units = 256, activation = "relu") %>% 
-    layer_dense(units = 128, activation = "relu") %>% 
-    layer_dense(units = 128, activation = "relu") %>% 
-    layer_dense(units = 1, activation = "relu")
+    layer_dense(units = 256, activation = "sigmoid") %>% 
+    layer_dense(units = 128, activation = "sigmoid") %>% 
+    layer_dense(units = 128, activation = "sigmoid") %>% 
+    layer_dense(units = 1, activation = "sigmoid")
 
 
   model %>% compile(
@@ -163,7 +166,6 @@ get_skater_pred <- function(stat){
     optimizer = "adam", 
   )
 
-  
   
   history <- model %>% 
     fit(
@@ -178,7 +180,7 @@ get_skater_pred <- function(stat){
   ids <- data.frame(Id)
   eval <- merge(ids, prev, by = 'Id',all.x = TRUE)
   eval[is.na(eval)] <- 0 
-  return(as.matrix(predict(model, eval)))
+  return(as.matrix(predict(model, eval) * max))
 }
 
 
