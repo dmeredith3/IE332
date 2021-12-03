@@ -31,8 +31,8 @@ predictions <- merge(predictions, players, by = 'Id')
 predictions_goalies <- predictions[(predictions$pos == 'G'),][,c(1,2,3,4,5,6)]
 predictions_skaters <- predictions[(predictions$pos != 'G'),][,c(1,19,7,8,9,10,11,12,13,14,15,16)]
 
-skater_cats <- c('G', 'A', 'PPG','PPA','SHG','SHA', 'PIM','S','HIT','BLK')
-goalie_cats <- c('GS', 'W','SV','SVP','SO')
+skater_cats <- c('G', 'A','S','HIT','BLK')
+goalie_cats <- c('W','SV','SVP','SO')
 
 get_skater_score <- function(stats, skater_cats){
   players <- stats[,c("Id","pos", skater_cats)]

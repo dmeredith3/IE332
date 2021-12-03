@@ -3,7 +3,10 @@ library(odbc)
 library(RMySQL) #if already installed
 library(RMariaDB)
 library(plyr)
-
+library(rvest)
+library(dplyr)
+library(tidyr)
+library(stringr)
 mydb <- dbConnect(MySQL(), user = "g1117498", password = "332group17", dbname = "g1117498", host = "mydb.itap.purdue.edu")
 
 get_skater_stats <- function(year){
