@@ -4,6 +4,19 @@ library(RMySQL) #if already installed
 library(RMariaDB)
 library(plyr)
 
+
+goalie_stats <- c()
+skater_stats <- c()
+for(i in 1:length(kpis)){
+  if(all(kpis[i] %in% skater_cats)){
+    goalie_stats <- c(goalie_stats, kpis[i])
+  }
+  else{
+    skater_stats <- c(skater_stats,kpis[i])
+  }
+  
+}
+
 mydb <- dbConnect(MySQL(), user = "g1117498", password = "332group17", dbname = "g1117498", host = "mydb.itap.purdue.edu")
 
 stats <- dbReadTable(mydb, "stats")
@@ -20,6 +33,7 @@ predictions_skaters <- predictions[(predictions$pos != 'G'),][,c(1,19,7,8,9,10,1
 
 skater_cats <- c('G', 'A', 'PPG','PPA','SHG','SHA', 'PIM','S','HIT','BLK')
 goalie_cats <- c('GS', 'W','SV','SVP','SO')
+
 get_skater_score <- function(stats, skater_cats){
   players <- stats[,c("Id","pos", skater_cats)]
   F_D <- c()
@@ -42,7 +56,7 @@ get_skater_score <- function(stats, skater_cats){
   for (row in 1:nrow(players)){
     column_score <- c()
     if (players[row,2] == 'F'){
-      for (column in 1:(length(skater_cats)-2)){
+      for (column in 1:(length(skater_cats))){
         if (skater_cats[column] == 'PIM'){
           column_score[column] <- as.numeric(((avg_table[2,1+column] + 1)/(players[row,2+column] + 2)) * 100)
         }
@@ -53,7 +67,7 @@ get_skater_score <- function(stats, skater_cats){
       scores[row] <- mean(column_score)
     }
     else{
-      for (column in 1:(length(skater_cats)-2)){
+      for (column in 1:(length(skater_cats))){
         if (skater_cats[column] == 'PIM'){
           column_score[column] <- as.numeric(((avg_table[1,1+column] + 1)/(players[row,2+column] + 2)) * 100)
         }
@@ -71,21 +85,36 @@ get_skater_score <- function(stats, skater_cats){
 
 get_goalie_score <- function(stats, goalie_cats){
   players <- stats[,c("Id", goalie_cats)]
-  avg_table <- (colMeans(players[, 2:length(players)]))
-  scores <- c()
-  for (row in 1:nrow(players)){
-    column_score <- c()
-    for (column in 1:(length(goalie_cats))){
-      column_score[column] <- as.numeric(((players[row,1+column])/ avg_table[column]) * 100)
+  if(length(goalie_cats) == 1){
+    average <- mean(players[,2])
+    for (row in 1:nrow(players)){
+      scores <- as.numeric(((players[row,1+column])/ average) * 100)
     }
-    scores[row] <- mean(column_score)
+    players <- data.frame(players,scores)
   }
-  players <- data.frame(players,scores)
+  else{
+    avg_table <- (colMeans(players[, 2:length(players)]))
+    scores <- c()
+    for (row in 1:nrow(players)){
+      column_score <- c()
+      for (column in 1:(length(goalie_cats))){
+        column_score[column] <- as.numeric(((players[row,1+column])/ avg_table[column]) * 100)
+      }
+      scores[row] <- mean(column_score)
+    }
+    players <- data.frame(players,scores)
+  }
   return(players)
 }
 
+skater_stats21 <- get_skater_stats(2021)
+goalie_stats21 <- get_goalie_stats(2021)
+skater_stats20 <- get_skater_stats(2020)
+goalie_stats20 <- get_goalie_stats(2020)
+skater_stats19 <- get_skater_stats(2019)
+goalie_stats19 <- get_goalie_stats(2019)
 
-stats_goalies <- get_goalie_score(stats_goalies, goalie_cats)[,c(1,7)]
+stats_goalies21 <- get_goalie_score(stats_goalies, goalie_cats)[,c(1,7)]
 names(stats_goalies) <- c('Id', 'Actual Scores')
 stats_skaters <- get_skater_score(stats_skaters, skater_cats)[,c(1,13)]
 names(stats_skaters) <- c('Id', 'Actual Scores')
@@ -97,4 +126,4 @@ skaters_bb <- merge(stats_skaters, predictions_skaters, by = 'Id', all = TRUE)
 goalies_bb <- merge(stats_goalies, predictions_goalies, by = 'Id', all = TRUE)
 skaters_bb <- skaters_bb[complete.cases(skaters_bb), ]
 goalies_bb <- skaters_bb[complete.cases(goalies_bb), ]
-plot(skaters_bb[,2],skaters_bb[,3])
+plot(skaters_bb$`Actual Scores`,skaters_bb$`Predicted Scores`)

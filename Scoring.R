@@ -17,11 +17,9 @@ stats <- merge(stats, players, by = 'Id')
 stats_goalies <- stats[(stats$pos == 'G'),][,c(1,3,4,5,6,7)]
 stats_skaters <- stats[(stats$pos != 'G'),][,c(1,20,8,9,10,11,12,13,14,15,16,17)]
 
-skater_cats <- c('G', 'A', 'PIM')
-goalie_cats <- c('W','SV','SO')
-
+skater_cats <- c('G', 'A', 'PIM','S','HIT','BLK')
+goalie_cats <- c('W','SV','SVP','SO')
 get_skater_score <- function(stats, skater_cats){
-  stats<- stats_skaters
   players <- stats[,c("Id","pos", skater_cats)]
   F_D <- c()
   pos <- c()
@@ -72,17 +70,25 @@ get_skater_score <- function(stats, skater_cats){
 
 get_goalie_score <- function(stats, goalie_cats){
   players <- stats[,c("Id", goalie_cats)]
-  avg_table <- (colMeans(players[, 2:length(players)]))
-  scores <- c()
-  for (row in 1:nrow(players)){
-    column_score <- c()
-    for (column in 1:(length(goalie_cats))){
-      column_score[column] <- as.numeric(((players[row,1+column])/ avg_table[column]) * 100)
+  if(length(goalie_cats) == 1){
+    average <- mean(players[,2])
+    for (row in 1:nrow(players)){
+      scores <- as.numeric(((players[row,1+column])/ average) * 100)
     }
-    scores[row] <- mean(column_score)
+    players <- data.frame(players,scores)
   }
-  players <- data.frame(players,scores)
-  players$pos <- 'G'
+  else{
+    avg_table <- (colMeans(players[, 2:length(players)]))
+    scores <- c()
+    for (row in 1:nrow(players)){
+      column_score <- c()
+      for (column in 1:(length(goalie_cats))){
+        column_score[column] <- as.numeric(((players[row,1+column])/ avg_table[column]) * 100)
+      }
+      scores[row] <- mean(column_score)
+    }
+    players <- data.frame(players,scores)
+  }
   return(players)
 }
 
