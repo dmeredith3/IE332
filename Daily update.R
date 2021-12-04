@@ -66,7 +66,7 @@ get_skater_stats <- function(year){
   skaters_stats$BLK <- as.numeric(skaters_stats$BLK) * fact
   skaters_stats <- separate(skaters_stats, Player, c('First', 'Last'), sep = ' ', extra='merge')
   skaters_stats$Id <- tolower(paste(substr(skaters_stats$First,1,1), str_replace_all(substr(skaters_stats$Last,1,10), pattern=" ", repl=""), (year - as.numeric(skaters_stats$Age)), sep = ''))
-  skaters_stats <- skaters_stats[, c('Id','First','Last','Age','Pos','GP','G','A','PPG','PPA','SHG', 'SHA','PIM','S','HIT','BLK')]
+  skaters_stats <- skaters_stats[, c('Id','First','Last','Age','pos','GP','G','A','PPG','PPA','SHG', 'SHA','PIM','S','HIT','BLK')]
   return(skaters_stats)
 }
 
@@ -123,7 +123,7 @@ get_goalie_stats <- function(year){
 skater_stats <- get_skater_stats(2022)
 goalie_stats <- get_goalie_stats(2022)
 stats <- rbind.fill(goalie_stats,skater_stats)
-stats[is.na(stats$Pos),]$Pos <- 'G'
+stats$Pos <- stats$Pos %>% replace_na("G")
 players_stats <- stats[,c(1,2,3,11)]
 names(players_stats) <- c('Id', 'first', 'last', 'pos')
 stats <- stats[,-c(2,3,4,11)]

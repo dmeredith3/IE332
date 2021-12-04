@@ -185,6 +185,7 @@ for (row in 1:nrow(Goalies)) {
 }
 Goalies <- Goalies[,c('Id','First.x','Last.x')]
 names(Goalies) <- c('Id','first','last')
+Goalies$pos <- 'G'
 
 GS <- as.numeric(get_goalie_pred('GS'))
 GS[is.na(GS)] <- 0

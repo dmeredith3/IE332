@@ -17,7 +17,7 @@ stats <- merge(stats, players, by = 'Id')
 stats_goalies <- stats[(stats$pos == 'G'),][,c(1,3,4,5,6,7)]
 stats_skaters <- stats[(stats$pos != 'G'),][,c(1,20,8,9,10,11,12,13,14,15,16,17)]
 
-skater_cats <- c('G', 'A',,'S','HIT','BLK')
+skater_cats <- c('G', 'A','S','HIT','BLK')
 goalie_cats <- c('W','SV','SVP','SO')
 get_skater_score <- function(stats, skater_cats){
   players <- stats[,c("Id","pos", skater_cats)]

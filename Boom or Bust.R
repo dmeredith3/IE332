@@ -108,22 +108,40 @@ get_goalie_score <- function(stats, goalie_cats){
 }
 
 skater_stats21 <- get_skater_stats(2021)
+names(skater_stats21)[5] <- 'pos'
 goalie_stats21 <- get_goalie_stats(2021)
 skater_stats20 <- get_skater_stats(2020)
+names(skater_stats20)[5] <- 'pos'
 goalie_stats20 <- get_goalie_stats(2020)
 skater_stats19 <- get_skater_stats(2019)
+names(skater_stats19)[5] <- 'pos'
 goalie_stats19 <- get_goalie_stats(2019)
 
-stats_goalies21 <- get_goalie_score(stats_goalies, goalie_cats)[,c(1,7)]
-names(stats_goalies) <- c('Id', 'Actual Scores')
-stats_skaters <- get_skater_score(stats_skaters, skater_cats)[,c(1,13)]
-names(stats_skaters) <- c('Id', 'Actual Scores')
-predictions_goalies <- get_goalie_score(predictions_goalies, goalie_cats)[,c(1,7)]
+stats_goalies21 <- get_goalie_score(goalie_stats21, goalie_cats)[,c(1,length(goalie_cats) + 2)]
+names(stats_goalies21) <- c('Id', 'Actual Scores 21')
+stats_goalies20 <- get_goalie_score(goalie_stats, goalie_cats)[,c(1,length(goalie_cats) + 2)]
+names(stats_goalies20) <- c('Id', 'Actual Scores ')
+stats_goalies19 <- get_goalie_score(goalie_stats19, goalie_cats)[,c(1,length(goalie_cats) + 2)]
+names(stats_goalies19) <- c('Id', 'Actual Scores 19')
+stats_skaters21 <- get_skater_score(skater_stats21, skater_cats)[,c(1,length(skater_cats) + 3)]
+names(stats_skaters21) <- c('Id', 'Actual Scores 21')
+stats_skaters20 <- get_skater_score(skater_stats20, skater_cats)[,c(1,length(skater_cats) + 3)]
+names(stats_skaters20) <- c('Id', 'Actual Scores 20')
+stats_skaters19 <- get_skater_score(skater_stats19, skater_cats)[,c(1,length(skater_cats) + 3)]
+names(stats_skaters19) <- c('Id', 'Actual Scores 19')
+
+predictions_goalies <- get_goalie_score(predictions_goalies, goalie_cats)[,c(1,length(goalie_cats) + 2)]
 names(stats_goalies) <- c('Id', 'Predicted Scores')
-predictions_skaters <- get_skater_score(predictions_skaters, skater_cats)[,c(1,13)]
+predictions_skaters <- get_skater_score(predictions_skaters, skater_cats)[,c(1,length(skater_cats) + 3)]
 names(predictions_skaters) <- c('Id', 'Predicted Scores')
-skaters_bb <- merge(stats_skaters, predictions_skaters, by = 'Id', all = TRUE)
-goalies_bb <- merge(stats_goalies, predictions_goalies, by = 'Id', all = TRUE)
+
+skaters_bb <- merge(skater_stats21, predictions_skaters, by = 'Id', all = TRUE)
+skaters_bb <- merge(skater_stats20, skaters_bb, by = 'Id', all = TRUE)
+skaters_bb <- merge(skater_stats19, skaters_bb, by = 'Id', all = TRUE)
+goalies_bb <- merge(goalie_stats21, predictions_goalies, by = 'Id', all = TRUE)
+goalies_bb <- merge(goalie_stats20, goalies_bb, by = 'Id', all = TRUE)
+goalies_bb <- merge(goalie_stats19, goalies_bb, by = 'Id', all = TRUE)
+
 skaters_bb <- skaters_bb[complete.cases(skaters_bb), ]
 goalies_bb <- skaters_bb[complete.cases(goalies_bb), ]
 plot(skaters_bb$`Actual Scores`,skaters_bb$`Predicted Scores`)
