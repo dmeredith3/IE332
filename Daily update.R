@@ -128,10 +128,6 @@ players_stats <- stats[,c(1,2,3,11)]
 names(players_stats) <- c('Id', 'first', 'last', 'pos')
 stats <- stats[,-c(2,3,4,11)]
 stats <- stats[order(stats$Id),]
-dbWriteTable(mydb, "stats", stats, overwrite = TRUE)
-
-players <- dbReadTable(mydb, "players")
-players <- rbind(players, players_stats)
-players <- players[!duplicated(players),]
-players <- dbWriteTable(mydb, "players", players, overwrite = TRUE)
+stats$stat_id <- paste('s_', seq_along(stats[,1]),sep = '')
+dbWriteTable(mydb, "stats", stats, append = TRUE, row.names = FALSE)
 

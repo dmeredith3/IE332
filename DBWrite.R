@@ -8,15 +8,9 @@ mydb <- dbConnect(MySQL(), user = "g1117498", password = "332group17", dbname = 
 Goalies$pos <- 'G'
 players <- rbind(Goalies,Skaters)
 players <- arrange(players, Id)
-dbWriteTable(mydb, "players", players, overwrite = TRUE)
+dbWriteTable(mydb, "players", players, append = TRUE,  row.names = FALSE)
 predictions <- rbind.fill(goalie_predictions,skater_predictions)
 predictions <- arrange(predictions, Id)
-dbWriteTable(mydb, "predictions", predictions, overwrite = TRUE)
-
-skater_stats <- get_skater_stats(2022)
-goalie_stats <- get_goalie_stats(2022)
-stats <- rbind.fill(goalie_stats,skater_stats)
-stats <- arrange(stats, Id)
-dbWriteTable(mydb, "stats", stats, overwrite = TRUE)
-stats <- dbReadTable(mydb, "stats")
+predictions$pred_id <- paste('p_', seq_along(predictions[,1]), sep = '')
+dbWriteTable(mydb, "predictions", predictions, append = TRUE, row.names = FALSE)
 

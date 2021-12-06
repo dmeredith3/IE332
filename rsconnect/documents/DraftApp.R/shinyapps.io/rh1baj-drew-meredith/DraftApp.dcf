@@ -1,0 +1,14 @@
+name: DraftApp
+title: DraftApp
+username:
+account: rh1baj-drew-meredith
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 5278636
+bundleId: 5335798
+url: https://rh1baj-drew-meredith.shinyapps.io/DraftApp/
+when: 1638820209.65554
+lastSyncTime: 1638820209.65555
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: Boom or Bust.R|Control Function.R|Daily update.log|Daily update.R|DBWrite.R|Draft App.R|NHL Goalies.R|NHL Predictions.R|NHL Scrape.R|Player Score Analysis.R|README.md|Scoring.R
