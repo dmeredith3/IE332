@@ -66,7 +66,7 @@ get_skater_stats <- function(year){
   skaters_stats$BLK <- as.numeric(skaters_stats$BLK) * fact
   skaters_stats <- separate(skaters_stats, Player, c('First', 'Last'), sep = ' ', extra='merge')
   skaters_stats$Id <- tolower(paste(substr(skaters_stats$First,1,1), str_replace_all(substr(skaters_stats$Last,1,10), pattern=" ", repl=""), (year - as.numeric(skaters_stats$Age)), sep = ''))
-  skaters_stats <- skaters_stats[, c('Id','First','Last','Age','pos','GP','G','A','PPG','PPA','SHG', 'SHA','PIM','S','HIT','BLK')]
+  skaters_stats <- skaters_stats[, c('Id','First','Last','Age','Pos','GP','G','A','PPG','PPA','SHG', 'SHA','PIM','S','HIT','BLK')]
   return(skaters_stats)
 }
 
