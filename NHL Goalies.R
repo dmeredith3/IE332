@@ -7,6 +7,7 @@ library(tidyverse)
 library(rsample)
 library(tfdatasets)
 
+#get goalie stats given year
 get_goalie_stats <- function(year){
   #Pull from html
   goalies_url <- read_html(paste("https://www.hockey-reference.com/leagues/NHL_", as.character(year), "_goalies.html", sep = '')) #Reads html of hockey-reference
@@ -43,6 +44,7 @@ get_goalie_stats <- function(year){
   }else{
     fact <- 1
   }
+  #makes stats numeric
   goalies_stats$GP <- as.numeric(goalies_stats$GP) * fact
   goalies_stats$GS <- as.numeric(goalies_stats$GS) * fact
   goalies_stats$W <- as.numeric(goalies_stats$W) * fact
@@ -54,7 +56,7 @@ get_goalie_stats <- function(year){
   goalies_stats <- goalies_stats[, c('Id','First','Last','Age','GP','GS','W','SV','SVP','SO')]
   return(goalies_stats)
 }
-
+#get goalie stats from previous years for input
 get_goalie_prev <- function(year, stat){
   cur_stats <- get_goalie_stats(year)[,c('Id', 'Age', stat)]
   last_stats <- get_goalie_stats(year - 1)[,c('Id', 'Age', stat)]
@@ -66,14 +68,16 @@ get_goalie_prev <- function(year, stat){
   return(goals)
 }
 
+#gets predicted goalies stat
 get_goalie_pred <- function(stat){
+  #creates stats for 2018 output
   stats <- get_goalie_stats(2018)[,c('Id',stat)]
   names(stats)[2] <- 'Stat'
   goalie_data <- get_goalie_prev(2017, stat)
   goalie_data <- merge(goalie_data, stats, by = 'Id',all = FALSE)
   goalie_data <- goalie_data[,-1]
   goalie_data[is.na(goalie_data)] <- 0 
-
+  #creates stats for 2017 output
   stats2 <- get_goalie_stats(2017)[,c('Id',stat)]
   names(stats2)[2] <- 'Stat'
   goalie_data2 <- get_goalie_prev(2016, stat)
@@ -81,7 +85,7 @@ get_goalie_pred <- function(stat){
   goalie_data2 <- goalie_data2[,-1]
   goalie_data2[is.na(goalie_data2)] <- 0 
   goalie_data <- rbind(goalie_data,goalie_data2)
-  
+  #creates stats for 2016 output
   stats2 <- get_goalie_stats(2016)[,c('Id', stat)]
   names(stats2)[2] <- 'Stat'
   goalie_data2 <- get_goalie_prev(2015, stat)
@@ -89,7 +93,7 @@ get_goalie_pred <- function(stat){
   goalie_data2 <- goalie_data2[,-1]
   goalie_data2[is.na(goalie_data2)] <- 0 
   goalie_data <- rbind(goalie_data,goalie_data2)
-  
+  #creates stats for 2015 output
   stats2 <- get_goalie_stats(2015)[,c('Id',stat)]
   names(stats2)[2] <- 'Stat'
   goalie_data2 <- get_goalie_prev(2014, stat)
@@ -97,15 +101,15 @@ get_goalie_pred <- function(stat){
   goalie_data2 <- goalie_data2[,-1]
   goalie_data2[is.na(goalie_data2)] <- 0 
   goalie_data <- rbind(goalie_data,goalie_data2)
-  # first we split between training and testing sets
+  # finds max value of stat for normalization
   max <- max(goalie_data$Stat)
   goalie_data$Stat <- goalie_data$Stat/max(goalie_data$Stat)
-  
+  #splits data into training and testing
   split <- initial_split(goalie_data, prop = 9/10)
   train <- training(split)
   val <- testing(split)
-  
-  df_to_dataset <- function(df, shuffle = TRUE, batch_size = 64) {
+  #creates batches
+  df_to_dataset <- function(df, shuffle = TRUE, batch_size = 32) {
     ds <- df %>% 
       tensor_slices_dataset()
     
@@ -115,39 +119,34 @@ get_goalie_pred <- function(stat){
     ds %>% 
       dataset_batch(batch_size = batch_size)
   }
-  
+  #creates validation and training data sets
   train_ds <- df_to_dataset(train)
   val_ds <- df_to_dataset(val, shuffle = FALSE)
   
-  #train_ds %>% 
-  #reticulate::as_iterator() %>% 
-  #reticulate::iter_next() %>% 
-  #str()
-  
   spec <- feature_spec(train_ds, Stat ~ .)
-  
+  #normalizes data
   spec <- spec %>% 
     step_numeric_column(
       all_numeric(), 
       normalizer_fn = scaler_standard()
     ) 
   spec_prep <- fit(spec)
-  #str(spec_prep$dense_features())
   
-  
+  #creates model
   model <- keras_model_sequential() %>% 
     layer_dense_features(dense_features(spec_prep)) %>% 
-    layer_dense(units = 256, activation = "relu") %>% 
+    layer_dense(units = 128, activation = "relu") %>% 
     layer_dense(units = 128, activation = "relu") %>% 
     layer_dense(units = 128, activation = "relu") %>% 
     layer_dense(units = 1, activation = "relu")
   
-  
+  #compiles model
   model %>% compile(
     loss = "mean_squared_error",
     optimizer = "adam", 
   )
   
+  #trains model
   history <- model %>% 
     fit(
       dataset_use_spec(train_ds, spec = spec_prep),
@@ -155,22 +154,23 @@ get_goalie_pred <- function(stat){
       validation_data = dataset_use_spec(train_ds, spec_prep),
       verbose = 2
     )
-  
+  #gets data from previous 3 years 
   prev <- get_goalie_prev(2021,stat)
   Id <-get_goalie_prev(2022, "GS")[,c('Id')]
   ids <- data.frame(Id)
   eval <- merge(ids, prev, by = 'Id',all.x = TRUE)
   eval[is.na(eval)] <- 0 
+  #returns predictions
   return(as.matrix(predict(model, eval)*max))
 }
 
 cur_stats <- get_goalie_stats(2022)[,c('Id', 'First','Last')]
 last_stats <- get_goalie_stats(2021)[,c('Id', 'First','Last')]
 prev_stats <- get_goalie_stats(2020)[,c('Id', 'First','Last')]
-#dprev_stats <- get_goalie_stats(year - 3)
-
+#gets last years statistics
 Goalies <- merge(cur_stats, last_stats, by = 'Id', all = TRUE)
 Goalies <- merge(Goalies, prev_stats, by = 'Id', all = TRUE)
+#fixes data
 for (row in 1:nrow(Goalies)) {
   if (is.na(Goalies[row,2])){
     if(is.na(Goalies[row,4])){
@@ -186,7 +186,7 @@ for (row in 1:nrow(Goalies)) {
 Goalies <- Goalies[,c('Id','First.x','Last.x')]
 names(Goalies) <- c('Id','first','last')
 Goalies$pos <- 'G'
-
+#gets predictions
 GS <- as.numeric(get_goalie_pred('GS'))
 GS[is.na(GS)] <- 0
 W<- as.numeric(get_goalie_pred('W'))
@@ -197,6 +197,6 @@ SVP <- as.numeric(get_goalie_pred('SVP'))
 SVP[is.na(SVP)] <- 0
 SO <- as.numeric(get_goalie_pred('SO'))
 SO[is.na(SO)] <- 0
-
+#creates data frame
 goalie_predictions <- data.frame(Goalies[1],GS,W,SV,SVP,SO)
 

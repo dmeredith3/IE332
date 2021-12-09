@@ -7,6 +7,7 @@ library(tidyverse)
 library(rsample)
 library(tfdatasets)
 
+#gets skater stats for a specific year
 get_skater_stats <- function(year){
   #Pull from html
   skaters_url <- read_html(paste("https://www.hockey-reference.com/leagues/NHL_", as.character(year), "_skaters.html", sep = '')) #Reads html of hockey-reference
@@ -43,7 +44,7 @@ get_skater_stats <- function(year){
   
   #Takes rows necessary for fantasy
   skaters_stats <- skaters_stats[, c('Player','Age','Pos','GP','G','A','PPG','PPA','SHG', 'SHA','PIM','S','HIT','BLK')]
-  #Formats data into numeric form
+  #Formats data into numeric form and normalizes for COVID-19 affected years
   if (year == 2021){
     fact <- 82/56
   }else if (year == 2020){
@@ -68,7 +69,7 @@ get_skater_stats <- function(year){
   return(skaters_stats)
 }
 
-
+#gets previous stats for the skaters
 get_skater_prev <- function(year, stat){
   cur_stats <- get_skater_stats(year)[,c('Id', 'Pos', 'Age', stat)]
   last_stats <- get_skater_stats(year - 1)[,c('Id', 'Pos', 'Age', stat)]
@@ -81,47 +82,50 @@ get_skater_prev <- function(year, stat){
   return(goals)
 }
 
+#gets predicted values for given stat
 get_skater_pred <- function(stat){
   stats <- get_skater_stats(2018)[,c('Id',stat)]
   names(stats)[2] <- 'Stat'
-  goalie_data <- get_skater_prev(2017, stat)
-  goalie_data <- merge(goalie_data, stats, by = 'Id',all = FALSE)
-  goalie_data <- goalie_data[,-1]
-  goalie_data[is.na(goalie_data)] <- 0 
+  skater_data <- get_skater_prev(2017, stat)
+  skater_data <- merge(skater_data, stats, by = 'Id',all = FALSE)
+  skater_data <- skater_data[,-1]
+  skater_data[is.na(skater_data)] <- 0 
   
   stats2 <- get_skater_stats(2017)[,c('Id',stat)]
   names(stats2)[2] <- 'Stat'
-  goalie_data2 <- get_skater_prev(2016, stat)
-  goalie_data2 <- merge(goalie_data2, stats2, by = 'Id',all = FALSE)
-  goalie_data2 <- goalie_data2[,-1]
-  goalie_data2[is.na(goalie_data2)] <- 0 
-  goalie_data <- rbind(goalie_data,goalie_data2)
+  skater_data2 <- get_skater_prev(2016, stat)
+  skater_data2 <- merge(skater_data2, stats2, by = 'Id',all = FALSE)
+  skater_data2 <- skater_data2[,-1]
+  skater_data2[is.na(skater_data2)] <- 0 
+  skater_data <- rbind(skater_data,skater_data2)
   
   stats2 <- get_skater_stats(2016)[,c('Id', stat)]
   names(stats2)[2] <- 'Stat'
-  goalie_data2 <- get_skater_prev(2015, stat)
-  goalie_data2 <- merge(goalie_data2, stats2, by = 'Id',all = FALSE)
-  goalie_data2 <- goalie_data2[,-1]
-  goalie_data2[is.na(goalie_data2)] <- 0 
-  goalie_data <- rbind(goalie_data,goalie_data2)
+  skater_data2 <- get_skater_prev(2015, stat)
+  skater_data2 <- merge(skater_data2, stats2, by = 'Id',all = FALSE)
+  skater_data2 <- skater_data2[,-1]
+  skater_data2[is.na(skater_data2)] <- 0 
+  skater_data <- rbind(skater_data,skater_data2)
   
   stats2 <- get_skater_stats(2015)[,c('Id',stat)]
   names(stats2)[2] <- 'Stat'
-  goalie_data2 <- get_skater_prev(2014, stat)
-  goalie_data2 <- merge(goalie_data2, stats2, by = 'Id',all = FALSE)
-  goalie_data2 <- goalie_data2[,-1]
-  goalie_data2[is.na(goalie_data2)] <- 0 
-  goalie_data <- rbind(goalie_data,goalie_data2)
-  # first we split between training and testing sets
+  skater_data2 <- get_skater_prev(2014, stat)
+  skater_data2 <- merge(skater_data2, stats2, by = 'Id',all = FALSE)
+  skater_data2 <- skater_data2[,-1]
+  skater_data2[is.na(skater_data2)] <- 0 
+  skater_data <- rbind(skater_data,skater_data2)
   
-  max <- max(goalie_data$Stat)
-  goalie_data$Stat <- goalie_data$Stat/max(goalie_data$Stat)
+  #finds max value of given stat
+  max <- max(skater_data$Stat)
+  skater_data$Stat <- skater_data$Stat/max(skater_data$Stat)
   
-  split <- initial_split(goalie_data, prop = 4/5)
+  #splits dataset
+  split <- initial_split(skater_data, prop = 4/5)
   train <- training(split)
   val <- testing(split)
   
-  df_to_dataset <- function(df, shuffle = TRUE, batch_size = 64) {
+  #shuffles into batches
+  df_to_dataset <- function(df, shuffle = TRUE, batch_size = 32) {
     ds <- df %>% 
       tensor_slices_dataset()
     
@@ -135,11 +139,7 @@ get_skater_pred <- function(stat){
   train_ds <- df_to_dataset(train)
   val_ds <- df_to_dataset(val, shuffle = FALSE)
   
-  #train_ds %>% 
-  #reticulate::as_iterator() %>% 
-  #reticulate::iter_next() %>% 
-  #str()
-  
+  #normalizes inputs
   spec <- feature_spec(train_ds, Stat ~ .)
   
   spec <- spec %>% 
@@ -150,23 +150,23 @@ get_skater_pred <- function(stat){
     step_categorical_column_with_vocabulary_list(c(Pos.x, Pos.y, Pos))
   
   spec_prep <- fit(spec)
-  #str(spec_prep$dense_features())
-  
 
+  
+  #builds model
   model <- keras_model_sequential() %>% 
     layer_dense_features(dense_features(spec_prep)) %>% 
-    layer_dense(units = 256, activation = "sigmoid") %>% 
+    layer_dense(units = 128, activation = "sigmoid") %>% 
     layer_dense(units = 128, activation = "sigmoid") %>% 
     layer_dense(units = 128, activation = "sigmoid") %>% 
     layer_dense(units = 1, activation = "sigmoid")
 
-
+  #compiles model
   model %>% compile(
     loss = "mean_squared_error",
     optimizer = "adam", 
   )
 
-  
+  #fits model
   history <- model %>% 
     fit(
       dataset_use_spec(train_ds, spec = spec_prep),
@@ -175,20 +175,22 @@ get_skater_pred <- function(stat){
       verbose = 2
     )
   
+  #gets previous stats for input
   prev <- get_skater_prev(2021,stat)
   Id <-get_skater_prev(2022, "G")[,c('Id')]
   ids <- data.frame(Id)
   eval <- merge(ids, prev, by = 'Id',all.x = TRUE)
   eval[is.na(eval)] <- 0 
+  #returns output
   return(as.matrix(predict(model, eval) * max))
 }
 
-
+#gets current stats
 cur_stats <- get_skater_stats(2022)[,c('Id', 'First','Last','Pos')]
 last_stats <- get_skater_stats(2021)[,c('Id', 'First','Last','Pos')]
 prev_stats <- get_skater_stats(2020)[,c('Id', 'First','Last','Pos')]
-#dprev_stats <- get_skater_stats(year - 3)
 
+#finds positions
 Skaters <- merge(cur_stats, last_stats, by = 'Id', all = TRUE)
 Skaters <- merge(Skaters, prev_stats, by = 'Id', all = TRUE)
 for (row in 1:nrow(Skaters)) {
@@ -205,6 +207,7 @@ for (row in 1:nrow(Skaters)) {
     }
   }
 }
+#creates predictions 
 Skaters <- Skaters[,c('Id','First.x','Last.x','Pos.x')]
 names(Skaters) <- c('Id','first','last','pos')
 G <- as.numeric(get_skater_pred('G'))

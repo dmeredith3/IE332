@@ -5,10 +5,12 @@ library(RMariaDB)
 library(plyr)
 mydb <- dbConnect(MySQL(), user = "g1117498", password = "332group17", dbname = "g1117498", host = "mydb.itap.purdue.edu")
 
+#builds player db
 Goalies$pos <- 'G'
 players <- rbind(Goalies,Skaters)
 players <- arrange(players, Id)
 dbWriteTable(mydb, "players", players, append = TRUE,  row.names = FALSE)
+#builds prediction db
 predictions <- rbind.fill(goalie_predictions,skater_predictions)
 predictions <- arrange(predictions, Id)
 predictions$pred_id <- paste('p_', seq_along(predictions[,1]), sep = '')

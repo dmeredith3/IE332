@@ -82,11 +82,11 @@ server <- function(input, output) {
       predictions <- dbReadTable(mydb, "predictions")
       players <- dbReadTable(mydb, "players")
       
-      stats <- merge(stats, players, by = 'Id')
+      stats <- merge(stats, players, by = 'Id')[,-1]
       stats_goalies <- stats[(stats$pos == 'G'),][,c(1,3,4,5,6,7)]
       stats_skaters <- stats[(stats$pos != 'G'),][,c(1,20,8,9,10,11,12,13,14,15,16,17)]
       
-      predictions <- merge(predictions, players, by = 'Id')
+      predictions <- merge(predictions, players, by = 'Id')[,-1]
       predictions_goalies <- predictions[(predictions$pos == 'G'),][,c(1,2,3,4,5,6)]
       predictions_skaters <- predictions[(predictions$pos != 'G'),][,c(1,19,7,8,9,10,11,12,13,14,15,16)]
       
